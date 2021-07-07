@@ -192,7 +192,9 @@ config NR_DRAM_BANKS
 	default 1 if ARCH_SUNXI || ARCH_OWL
 	default 4
 	help
-	  This defines the number of DRAM banks.
+	  This defines the number of DRAM banks. For qemu with NUMA, you
+	  may want to set this value to <slots> * <possible memdev>.
+	  for instance, for a 2 slot with 4 memdevs set NR_DRAM_BANKS to 8.
 
 config SYS_BOOT_GET_CMDLINE
 	bool "Enable kernel command line setup"
