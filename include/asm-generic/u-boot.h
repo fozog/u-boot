@@ -71,6 +71,8 @@ struct bd_info {
 	struct {			/* RAM configuration */
 		phys_addr_t start;
 		phys_size_t size;
+		unsigned numa_node;
+		unsigned pad; /* just to make sure we do not cause alignment */
 	} bi_dram[CONFIG_NR_DRAM_BANKS];
 };
 

@@ -1101,43 +1101,62 @@ ofnode get_next_memory_node(ofnode mem)
 
 int fdtdec_setup_memory_banksize(void)
 {
-	int bank, ret, reg = 0;
-	struct resource res;
-	ofnode mem = ofnode_null();
+        int bank, ret, reg = 0;
+        struct resource res;
+        ofnode mem = ofnode_null();
+        const __be32* numa_node_prop = NULL;
+        int len;
+        int numa_node = -1;
+        int count = 0;
 
-	mem = get_next_memory_node(mem);
-	if (!ofnode_valid(mem)) {
-		debug("%s: Missing /memory node\n", __func__);
-		return -EINVAL;
-	}
+        for (mem = get_next_memory_node(mem); ofnode_valid(mem); mem = get_next_memory_node(mem)) {
 
-	for (bank = 0; bank < CONFIG_NR_DRAM_BANKS; bank++) {
-		ret = ofnode_read_resource(mem, reg++, &res);
-		if (ret < 0) {
-			reg = 0;
-			mem = get_next_memory_node(mem);
-			if (!ofnode_valid(mem))
-				break;
+            count++;
 
-			ret = ofnode_read_resource(mem, reg++, &res);
-			if (ret < 0)
-				break;
-		}
+            numa_node_prop = ofnode_get_property(mem, "numa-node-id", &len);
+            if (numa_node_prop != NULL && len == sizeof(__be32)) {
+                numa_node = of_read_number(numa_node_prop, 1);
+            }
+            else numa_node = 0;
 
-		if (ret != 0)
-			return -EINVAL;
+            debug("Found memory for node %d\n", numa_node);
 
-		gd->bd->bi_dram[bank].start = (phys_addr_t)res.start;
-		gd->bd->bi_dram[bank].size =
-			(phys_size_t)(res.end - res.start + 1);
+            ret = 0;
+            for(reg = 0; ret == 0 && bank < CONFIG_NR_DRAM_BANKS; reg++) {
+                ret = ofnode_read_resource(mem, reg, &res);
 
-		debug("%s: DRAM Bank #%d: start = 0x%llx, size = 0x%llx\n",
-		      __func__, bank,
-		      (unsigned long long)gd->bd->bi_dram[bank].start,
-		      (unsigned long long)gd->bd->bi_dram[bank].size);
-	}
+                if (ret != 0)
+                        break;
 
-	return 0;
+                gd->bd->bi_dram[bank].start = (phys_addr_t)res.start;
+                gd->bd->bi_dram[bank].size =
+                        (phys_size_t)(res.end - res.start + 1);
+                gd->bd->bi_dram[bank].numa_node = numa_node;
+
+
+                debug("%s: DRAM Bank #%d: start = 0x%llx, size = 0x%llx"
+                     " name_node = %d\n",
+                      __func__, bank,
+                      (unsigned long long)gd->bd->bi_dram[bank].start,
+                      (unsigned long long)gd->bd->bi_dram[bank].size,
+                      gd->bd->bi_dram[bank].numa_node);
+
+                bank++;
+            }
+
+        }
+
+        if (count == 0) {
+                debug("%s: Missing /memory node\n", __func__);
+                return -EINVAL;
+        }
+
+        if (bank >= CONFIG_NR_DRAM_BANKS) {
+                printf("Too many DT memory nodes for CONFIG_NR_DRAM_BANKS=%d\n",
+                                CONFIG_NR_DRAM_BANKS);
+        }
+
+        return 0;
 }
 
 int fdtdec_setup_mem_size_base_lowest(void)
