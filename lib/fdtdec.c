@@ -1064,32 +1064,6 @@ int fdtdec_decode_display_timing(const void *blob, int parent, int index,
 	return ret;
 }
 
-int fdtdec_setup_mem_size_base(void)
-{
-	int ret;
-	ofnode mem;
-	struct resource res;
-
-	mem = ofnode_path("/memory");
-	if (!ofnode_valid(mem)) {
-		debug("%s: Missing /memory node\n", __func__);
-		return -EINVAL;
-	}
-
-	ret = ofnode_read_resource(mem, 0, &res);
-	if (ret != 0) {
-		debug("%s: Unable to decode first memory bank\n", __func__);
-		return -EINVAL;
-	}
-
-	gd->ram_size = (phys_size_t)(res.end - res.start + 1);
-	gd->ram_base = (unsigned long)res.start;
-	debug("%s: Initial DRAM size %llx\n", __func__,
-	      (unsigned long long)gd->ram_size);
-
-	return 0;
-}
-
 ofnode get_next_memory_node(ofnode mem)
 {
 	do {
@@ -1097,6 +1071,39 @@ ofnode get_next_memory_node(ofnode mem)
 	} while (!ofnode_is_available(mem));
 
 	return mem;
+}
+
+int fdtdec_setup_mem_size_base(void)
+{
+	int ret;
+	int reg;
+	int len;
+	ofnode mem;
+	struct resource res;
+	phys_addr_t base = ~0;
+	phys_size_t size = 0;;
+
+	for (mem = get_next_memory_node(mem); ofnode_valid(mem); mem = get_next_memory_node(mem)) {
+	
+		for(reg = 0, ret = 0; ret == 0 ; reg++) {
+			ret = ofnode_read_resource(mem, reg, &res);
+			if (ret != 0)
+				break;
+			if ((phys_addr_t)res.start < base)
+				base = (phys_addr_t)res.start;
+			size += (phys_size_t)(res.end - res.start + 1);
+		}
+	}
+	
+	gd->ram_base = (unsigned long)base;
+	gd->ram_size = (phys_size_t)size;
+
+	debug("%s: Initial DRAM base %llx\n", __func__,
+	      (unsigned long long)gd->ram_base);
+	debug("%s: Initial DRAM size %llx\n", __func__,
+	      (unsigned long long)gd->ram_size);
+
+	return 0;
 }
 
 int fdtdec_setup_memory_banksize(void)
