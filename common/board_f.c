@@ -342,8 +342,9 @@ static int setup_dest_addr(void)
 #endif
 	gd->ram_top = gd->ram_base + get_effective_memsize();
 	gd->ram_top = board_get_usable_ram_top(gd->mon_len);
-	gd->relocaddr = gd->ram_top;
+	gd->relocaddr = gd->numa0_ram_top != 0 ? gd->numa0_ram_top : gd->ram_top;
 	debug("Ram top: %08lX\n", (ulong)gd->ram_top);
+	debug("Relocaddr: %08lX\n", (ulong)gd->relocaddr);
 #if defined(CONFIG_MP) && (defined(CONFIG_MPC86xx) || defined(CONFIG_E500))
 	/*
 	 * We need to make sure the location we intend to put secondary core

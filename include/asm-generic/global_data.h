@@ -148,6 +148,7 @@ struct global_data {
 	 * @ram_top: top address of RAM used by U-Boot
 	 */
 	phys_addr_t ram_top;
+	phys_addr_t numa0_ram_top;
 	/**
 	 * @relocaddr: start address of U-Boot in RAM
 	 *

@@ -1082,9 +1082,18 @@ int fdtdec_setup_mem_size_base(void)
 	struct resource res;
 	phys_addr_t base = ~0;
 	phys_size_t size = 0;;
+	int numa_node = -1;
+	const __be32* numa_node_prop = NULL;
 
+	gd->numa0_ram_top = 0;
 	for (mem = get_next_memory_node(mem); ofnode_valid(mem); mem = get_next_memory_node(mem)) {
 	
+		numa_node_prop = ofnode_get_property(mem, "numa-node-id", &len);
+		if (numa_node_prop != NULL && len == sizeof(__be32)) {
+			numa_node = of_read_number(numa_node_prop, 1);
+		}
+		else numa_node = 0;
+
 		for(reg = 0, ret = 0; ret == 0 ; reg++) {
 			ret = ofnode_read_resource(mem, reg, &res);
 			if (ret != 0)
@@ -1092,6 +1101,9 @@ int fdtdec_setup_mem_size_base(void)
 			if ((phys_addr_t)res.start < base)
 				base = (phys_addr_t)res.start;
 			size += (phys_size_t)(res.end - res.start + 1);
+			if (numa_node == 0) {
+				if (gd->numa0_ram_top < res.end + 1) gd->numa0_ram_top = res.end + 1;
+			}
 		}
 	}
 	

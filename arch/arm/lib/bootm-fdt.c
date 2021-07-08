@@ -42,12 +42,17 @@ int arch_fixup_fdt(void *blob)
 	u64 size[CONFIG_NR_DRAM_BANKS];
 
 	for (bank = 0; bank < CONFIG_NR_DRAM_BANKS; bank++) {
+		unsigned char node = bd->bi_dram[bank].numa_node;
 		start[bank] = bd->bi_dram[bank].start;
 		size[bank] = bd->bi_dram[bank].size;
 #ifdef CONFIG_ARMV7_NONSEC
 		ret = armv7_apply_memory_carveout(&start[bank], &size[bank]);
 		if (ret)
 			return ret;
+#endif
+#ifdef CONFIG_OF_LIBFDT
+		/* add node info for the fdt_fixup_memory below */
+		start[bank] = (((phys_addr_t)node) << 56) | bd->bi_dram[bank].start;
 #endif
 	}
 
