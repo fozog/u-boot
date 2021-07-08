@@ -415,16 +415,29 @@ static int fdt_pack_reg(const void *fdt, void *buf, u64 *address, u64 *size,
 	return p - (char *)buf;
 }
 
+static inline uint32_t fdt32_ld(const fdt32_t *p)
+{
+    const uint8_t *bp = (const uint8_t *)p;
+
+    return ((uint32_t)bp[0] << 24)
+           | ((uint32_t)bp[1] << 16)
+           | ((uint32_t)bp[2] << 8)
+           | bp[3];
+}
 #if CONFIG_NR_DRAM_BANKS > 4
 #define MEMORY_BANKS_MAX CONFIG_NR_DRAM_BANKS
 #else
 #define MEMORY_BANKS_MAX 4
 #endif
+/* NUMA has yet to be properly handled 
+ * This code appends memory to the first memory node that matches the NUMA node.
+ */
 int fdt_fixup_memory_banks(void *blob, u64 start[], u64 size[], int banks)
 {
 	int err, nodeoffset;
 	int len, i;
 	u8 tmp[MEMORY_BANKS_MAX * 16]; /* Up to 64-bit address + 64-bit size */
+	unsigned int numa_node;
 
 	if (banks > MEMORY_BANKS_MAX) {
 		printf("%s: num banks %d exceeds hardcoded limit %d."
@@ -444,6 +457,12 @@ int fdt_fixup_memory_banks(void *blob, u64 start[], u64 size[], int banks)
 	if (nodeoffset < 0)
 			return nodeoffset;
 
+	const __be32* numa_node_prop = fdt_getprop(blob, nodeoffset, "numa-node-id", &len);
+	if (numa_node_prop != NULL && len == sizeof(__be32)) {
+		numa_node = fdt32_ld(numa_node_prop);
+	}
+	else numa_node = 0;
+
 	err = fdt_setprop(blob, nodeoffset, "device_type", "memory",
 			sizeof("memory"));
 	if (err < 0) {
@@ -453,8 +472,27 @@ int fdt_fixup_memory_banks(void *blob, u64 start[], u64 size[], int banks)
 	}
 
 	for (i = 0; i < banks; i++) {
-		if (start[i] == 0 && size[i] == 0)
+		/* clear node information */
+		unsigned int node;
+recheck:
+		if (start[i]  == 0 && size[i] == 0)
 			break;
+		node = (start[i] >> 56) & 0xFF;
+		start[i] = start[i] & 0x00FFFFFFFFFFFFFF;
+		/* for the moment, just ignore the banks that are not in 
+		 * memory NUMA node */
+		if (node != numa_node) {
+			/* remove the bank from the list */
+			int j;
+			for (j=i; j < banks-1; j++) {
+				start[j] = start[j+1];
+				size[j] = size[j+1];
+			}
+			start[j]=0;
+			size[j]=0;
+			banks--;
+			goto recheck;
+		}
 	}
 
 	banks = i;
@@ -470,6 +508,7 @@ int fdt_fixup_memory_banks(void *blob, u64 start[], u64 size[], int banks)
 				"reg", fdt_strerror(err));
 		return err;
 	}
+
 	return 0;
 }
 
